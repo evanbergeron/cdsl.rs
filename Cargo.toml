@@ -1,0 +1,6 @@
+[package]
+name = "cdsl"
+version = "0.1.0"
+authors = ["Evan Bergeron <bergeronej@gmail.com>"]
+
+[dependencies]
