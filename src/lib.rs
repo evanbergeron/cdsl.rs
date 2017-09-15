@@ -12,7 +12,7 @@ pub enum Type {
     Void, /* In the C sense, not in the type theory sense. */
     Int,
     Struct(Box<Ref> /* name */, Vec<Ref> /* fields */),
-    FuncPtr(Box<Type>, Box<Type>),
+    FuncPtr(Vec<Type>, Box<Type>),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -67,14 +67,48 @@ fn format_line(tabs: usize, line: String) -> String {
     result
 }
 
-// Separate from emit_type because function pointers are weird.
-fn emit_ref(r: Ref) -> String {
-    match r.t {
-        Void => "void".to_string(),
-        Int => "int".to_string(),
-        Struct(struct_ref, fields) => "TODO".to_string(),
-        FuncPtr(domain, codomain) => "TODO".to_string(),
-    }
+fn emit_decl(t: Type, ident: Option<String>) -> String {
+    emit_decl_rec(t, ident, &mut format!(""), &mut format!(""))
+}
+
+fn emit_decl_rec(
+    t: Type,
+    ident: Option<String>,
+    prefix: &mut String,
+    suffix: &mut String,
+) -> String {
+    // The prefix of the prefix, as you might expect.
+    let mut prefix_prefix = format!("");
+    let result_ident: String = match ident {
+        Some(name) => name,
+        None => format!(""),
+    };
+    match t {
+        Void => {
+            prefix_prefix.push_str("void ");
+        }
+        Int => {
+            prefix_prefix.push_str("int ");
+        }
+        Struct(struct_ref, fields) => {
+            prefix_prefix.push_str(&format!("struct {}", struct_ref.ident));
+        }
+        FuncPtr(domain, codomain) => {
+            prefix_prefix.push_str(&emit_decl(*codomain, None));
+            let mut i = 0;
+            let length = domain.len();
+            suffix.push_str("(");
+            for arg_type in domain {
+                suffix.push_str(&emit_decl(arg_type, None));
+                if i < length {
+                    suffix.push_str(",");
+                }
+                i = i + 1;
+            }
+            suffix.push_str(")");
+        }
+    };
+    return format!("{}{}{}{}", prefix_prefix, prefix, result_ident, suffix);
 }
 
 
@@ -127,7 +161,9 @@ fn emit_expr(tabs: usize, e: Expr) -> String {
 
 fn emit_stmt(tabs: usize, s: Stmt) -> String {
     match s {
-        Assign(lhs_ref, rhs) => format!("{} = {};", lhs_ref.ident, emit_expr(tabs, rhs)),
+        Assign(lhs_ref, rhs) => {
+            format!("{} = {};", lhs_ref.ident, emit_expr(tabs, rhs))
+        }
         Conditional(cond, true_stmts, false_stmts) => "TODO".to_string(),
         StandaloneExpr(e) => format!("{};", emit_expr(tabs, e)),
         Return(e) => "TODO".to_string(),
@@ -140,7 +176,9 @@ fn emit_top(top: Top) -> String {
         StructDef(struct_ref, field_refs) => {
             let mut result = format!("struct {} {{\n", struct_ref.ident);
             for field in field_refs {
-                result.push_str(&format_line(1, emit_ref(field)));
+                result.push_str(
+                    &format_line(1, emit_decl(field.t, Some(field.ident))),
+                );
             }
             result.push_str("}}\n\n");
             result
