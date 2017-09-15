@@ -1,3 +1,6 @@
+#![allow(unused_variables)]
+#![allow(dead_code)]
+
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct Ref {
     pub t: Type,
@@ -49,45 +52,104 @@ use self::Expr::*;
 use self::Stmt::*;
 use self::Top::*;
 
-fn emitType(t: Type) -> String {
-    match t {
+fn make_tabs(tabs: usize) -> String {
+    let mut result = format!("");
+    for i in 0..tabs {
+        result.push_str("  ");
+    }
+    result
+}
+
+fn format_line(tabs: usize, line: String) -> String {
+    let mut result = make_tabs(tabs);
+    result.push_str(&line);
+    result.push_str("\n");
+    result
+}
+
+// Separate from emit_type because function pointers are weird.
+fn emit_ref(r: Ref) -> String {
+    match r.t {
         Void => "void".to_string(),
         Int => "int".to_string(),
-        Struct(structRef, fields) => "TODO".to_string(),
+        Struct(struct_ref, fields) => "TODO".to_string(),
         FuncPtr(domain, codomain) => "TODO".to_string(),
     }
 }
 
-fn emitExpr(e: Expr) -> String {
-    match e {
-        V(r) => r.ident,
-        Unsigned(i) => format!("{}", i),
-        Inc(t, e) => format!("{}++", emitExpr(*e)),
-        Dec(t, e) => format!("{}--", emitExpr(*e)),
-        App(funcRef, argExprs) => "TODO".to_string(),
-        StructFieldAccess(t, r, ident) => "TODO".to_string(),
-        StructExpr(t, ident, structFieldExprs) => "TODO".to_string(),
+
+fn emit_type(tabs: usize, t: Type) -> String {
+    match t {
+        Void => "void".to_string(),
+        Int => "int".to_string(),
+        Struct(struct_ref, fields) => "TODO".to_string(),
+        FuncPtr(domain, codomain) => "TODO".to_string(),
     }
 }
 
-fn emitStmt(s: Stmt) -> String {
+fn emit_expr(tabs: usize, e: Expr) -> String {
+    match e {
+        V(r) => r.ident,
+        Unsigned(i) => format!("{}", i),
+        Inc(t, e) => format!("{}++", emit_expr(tabs, *e)),
+        Dec(t, e) => format!("{}--", emit_expr(tabs, *e)),
+        App(func_ref, args) => {
+            let mut result = format!("{}(", func_ref.ident);
+            let mut i = 0;
+            let length = args.len();
+            for arg in args {
+                result.push_str(&emit_expr(tabs, arg));
+                if i < length - 1 {
+                    result.push_str(", ");
+                }
+                i = i + 1;
+            }
+            result.push_str(")");
+            result
+        }
+        StructFieldAccess(t, r, ident) => format!("{}.{}", r.ident, ident),
+        StructExpr(t, ident, fields) => {
+            let mut result = format!("((struct {}) {{", ident);
+            let mut i = 0;
+            let length = fields.len();
+            for field in fields {
+                result.push_str(&format!("{}", emit_expr(tabs, field)));
+                if i < length - 1 {
+                    result.push_str(", ");
+                }
+                i = i + 1;
+            }
+            result.push_str(&format!("}})"));
+            result
+        }
+    }
+}
+
+fn emit_stmt(tabs: usize, s: Stmt) -> String {
     match s {
-        Assign(lhsRef, rhs) => "TODO".to_string(),
-        Conditional(cond, trueStmts, falseStmts) => "TODO".to_string(),
-        StandaloneExpr(e) => format!("{};", emitExpr(e)),
+        Assign(lhs_ref, rhs) => format!("{} = {};", lhs_ref.ident, emit_expr(tabs, rhs)),
+        Conditional(cond, true_stmts, false_stmts) => "TODO".to_string(),
+        StandaloneExpr(e) => format!("{};", emit_expr(tabs, e)),
         Return(e) => "TODO".to_string(),
         VarDecl(r) => "TODO".to_string(),
     }
 }
 
-fn emitTop(top: Top) -> String {
+fn emit_top(top: Top) -> String {
     match top {
-        StructDef(structRef, fieldRefs) => "TODO".to_string(),
-        StructDecl(structRef) => "TODO".to_string(),
-        Func(funcRef, argRefs, body) => "TODO".to_string(),
+        StructDef(struct_ref, field_refs) => {
+            let mut result = format!("struct {} {{\n", struct_ref.ident);
+            for field in field_refs {
+                result.push_str(&format_line(1, emit_ref(field)));
+            }
+            result.push_str("}}\n\n");
+            result
+        }
+        StructDecl(struct_ref) => "TODO".to_string(),
+        Func(func_ref, arg_refs, body) => "TODO".to_string(),
     }
 }
 
-pub fn emitProgram(t: Program) -> String {
+pub fn emit_program(t: Program) -> String {
     "TODO".to_string()
 }
