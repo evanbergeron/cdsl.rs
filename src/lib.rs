@@ -112,15 +112,6 @@ fn emit_decl_rec(
 }
 
 
-fn emit_type(tabs: usize, t: Type) -> String {
-    match t {
-        Void => "void".to_string(),
-        Int => "int".to_string(),
-        Struct(struct_ref, fields) => "TODO".to_string(),
-        FuncPtr(domain, codomain) => "TODO".to_string(),
-    }
-}
-
 fn emit_expr(tabs: usize, e: Expr) -> String {
     match e {
         V(r) => r.ident,
@@ -162,12 +153,31 @@ fn emit_expr(tabs: usize, e: Expr) -> String {
 fn emit_stmt(tabs: usize, s: Stmt) -> String {
     match s {
         Assign(lhs_ref, rhs) => {
-            format!("{} = {};", lhs_ref.ident, emit_expr(tabs, rhs))
+            format_line(
+                tabs,
+                format!("{} = {};", lhs_ref.ident, emit_expr(0, rhs)),
+            )
         }
-        Conditional(cond, true_stmts, false_stmts) => "TODO".to_string(),
-        StandaloneExpr(e) => format!("{};", emit_expr(tabs, e)),
-        Return(e) => "TODO".to_string(),
-        VarDecl(r) => "TODO".to_string(),
+        Conditional(cond, true_stmts, false_stmts) => {
+            let mut result =
+                format_line(tabs, format!("if ({}) {{", emit_expr(0, cond)));
+            for true_stmt in true_stmts {
+                result.push_str(&emit_stmt(tabs + 1, true_stmt));
+            }
+            result.push_str(&format_line(tabs, "} else {".to_string()));
+            for false_stmt in false_stmts {
+                result.push_str(&emit_stmt(tabs + 1, false_stmt));
+            }
+            result.push_str(&format_line(tabs, "}".to_string()));
+            result
+        }
+        StandaloneExpr(e) => {
+            format_line(tabs, format!("{};", emit_expr(tabs, e)))
+        }
+        Return(e) => {
+            format_line(tabs, format!("return {};", emit_expr(tabs, e)))
+        }
+        VarDecl(r) => format_line(tabs, emit_decl(r.t, Some(r.ident))),
     }
 }
 
@@ -189,5 +199,9 @@ fn emit_top(top: Top) -> String {
 }
 
 pub fn emit_program(t: Program) -> String {
-    "TODO".to_string()
+    let mut result = format!("");
+    for top in t.tops {
+        result.push_str(&emit_top(top));
+    }
+    result
 }
