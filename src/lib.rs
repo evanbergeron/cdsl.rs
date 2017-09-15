@@ -12,7 +12,8 @@ pub enum Type {
     Void, /* In the C sense, not in the type theory sense. */
     Int,
     Struct(Box<Ref> /* name */, Vec<Ref> /* fields */),
-    FuncPtr(Vec<Type>, Box<Type>),
+    Func(Vec<Ref>, Box<Type>),
+    Pointer(Box<Type>),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -39,7 +40,7 @@ pub enum Stmt {
 pub enum Top {
     StructDef(Ref, Vec<Ref>),
     StructDecl(Ref),
-    Func(Ref, Vec<Ref>, Vec<Stmt>),
+    FuncDef(Ref, Vec<Ref>, Vec<Stmt>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -67,8 +68,11 @@ fn format_line(tabs: usize, line: String) -> String {
     result
 }
 
-fn emit_decl(t: Type, ident: Option<String>) -> String {
-    emit_decl_rec(t, ident, &mut format!(""), &mut format!(""))
+// TODO Consider changing 'emit' to another verb that more clearly
+// denotes producing a string, rather than printing a string.
+
+fn emit_decl(r: Ref) -> String {
+    emit_decl_rec(r.t, Some(r.ident), &mut format!(""), &mut format!(""))
 }
 
 fn emit_decl_rec(
@@ -91,26 +95,33 @@ fn emit_decl_rec(
             prefix_prefix.push_str("int ");
         }
         Struct(struct_ref, fields) => {
+            // TODO not so sure about this. How does struct_ref
+            // interact with ident?
             prefix_prefix.push_str(&format!("struct {}", struct_ref.ident));
         }
-        FuncPtr(domain, codomain) => {
-            prefix_prefix.push_str(&emit_decl(*codomain, None));
+        Func(domain, codomain) => {
+            prefix_prefix.push_str(&emit_decl(Ref {
+                t: *codomain,
+                ident: format!(""),
+            }));
             let mut i = 0;
             let length = domain.len();
             suffix.push_str("(");
-            for arg_type in domain {
-                suffix.push_str(&emit_decl(arg_type, None));
+            for arg_ref in domain {
+                suffix.push_str(&emit_decl(arg_ref));
                 if i < length {
-                    suffix.push_str(",");
+                    suffix.push_str(", ");
                 }
                 i = i + 1;
             }
             suffix.push_str(")");
         }
+        Pointer(t) => {
+            prefix.push_str("*");
+        }
     };
     return format!("{}{}{}{}", prefix_prefix, prefix, result_ident, suffix);
 }
-
 
 fn emit_expr(tabs: usize, e: Expr) -> String {
     match e {
@@ -177,7 +188,7 @@ fn emit_stmt(tabs: usize, s: Stmt) -> String {
         Return(e) => {
             format_line(tabs, format!("return {};", emit_expr(tabs, e)))
         }
-        VarDecl(r) => format_line(tabs, emit_decl(r.t, Some(r.ident))),
+        VarDecl(r) => format_line(tabs, emit_decl(r)),
     }
 }
 
@@ -186,15 +197,26 @@ fn emit_top(top: Top) -> String {
         StructDef(struct_ref, field_refs) => {
             let mut result = format!("struct {} {{\n", struct_ref.ident);
             for field in field_refs {
-                result.push_str(
-                    &format_line(1, emit_decl(field.t, Some(field.ident))),
-                );
+                result.push_str(&format_line(1, emit_decl(field)));
             }
             result.push_str("}}\n\n");
             result
         }
-        StructDecl(struct_ref) => "TODO".to_string(),
-        Func(func_ref, arg_refs, body) => "TODO".to_string(),
+        StructDecl(struct_ref) => format!("struct {};\n", struct_ref.ident),
+        FuncDef(func_ref, arg_refs, body) => {
+            if let Func(d, c) = func_ref.t.clone() {
+                let mut result = emit_decl(func_ref);
+                result.push_str(" {\n");
+                for stmt in body {
+                    result.push_str(&emit_stmt(1, stmt));
+                }
+                result.push_str("}\n\n");
+                result
+            } else {
+                assert!(false);
+                format!("")
+            }
+        }
     }
 }
 
