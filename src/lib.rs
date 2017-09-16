@@ -12,7 +12,7 @@ pub enum Type {
     Void, /* In the C sense, not in the type theory sense. */
     Int,
     Struct(Box<Ref> /* name */, Vec<Ref> /* fields */),
-    Func(Vec<Ref>, Box<Type>),
+    FuncType(Vec<Ref>, Box<Type>),
     Pointer(Box<Type>),
 }
 
@@ -99,7 +99,7 @@ fn emit_decl_rec(
             // interact with ident?
             prefix_prefix.push_str(&format!("struct {}", struct_ref.ident));
         }
-        Func(domain, codomain) => {
+        FuncType(domain, codomain) => {
             prefix_prefix.push_str(&emit_decl(Ref {
                 t: *codomain,
                 ident: format!(""),
@@ -109,7 +109,7 @@ fn emit_decl_rec(
             suffix.push_str("(");
             for arg_ref in domain {
                 suffix.push_str(&emit_decl(arg_ref));
-                if i < length {
+                if i < length - 1 {
                     suffix.push_str(", ");
                 }
                 i = i + 1;
@@ -204,7 +204,7 @@ fn emit_top(top: Top) -> String {
         }
         StructDecl(struct_ref) => format!("struct {};\n", struct_ref.ident),
         FuncDef(func_ref, arg_refs, body) => {
-            if let Func(d, c) = func_ref.t.clone() {
+            if let FuncType(d, c) = func_ref.t.clone() {
                 let mut result = emit_decl(func_ref);
                 result.push_str(" {\n");
                 for stmt in body {
