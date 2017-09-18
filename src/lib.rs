@@ -14,6 +14,7 @@ pub enum Type {
     Struct(Box<Ref> /* name */, Vec<Ref> /* fields */),
     FuncType(Vec<Ref>, Box<Type>),
     Pointer(Box<Type>),
+    ArrayOf(Box<Type>, usize),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -71,7 +72,7 @@ fn format_line(tabs: usize, line: String) -> String {
 // TODO Consider changing 'emit' to another verb that more clearly
 // denotes producing a string, rather than printing a string.
 
-fn emit_decl(r: Ref) -> String {
+pub fn emit_decl(r: Ref) -> String {
     emit_decl_rec(r.t, Some(r.ident), &mut format!(""), &mut format!(""))
 }
 
@@ -83,16 +84,22 @@ fn emit_decl_rec(
 ) -> String {
     // The prefix of the prefix, as you might expect.
     let mut prefix_prefix = format!("");
-    let result_ident: String = match ident {
-        Some(name) => name,
+    let formatted_ident: String = match ident.clone() {
+        Some(name) => {
+            match (name.len() > 0, prefix.ends_with("(*")) {
+                (false, _) => format!(""),
+                (true, true) => name,
+                (true, false) => format!(" {}", name),
+            }
+        }
         None => format!(""),
     };
-    match t {
+    match t.clone() {
         Void => {
-            prefix_prefix.push_str("void ");
+            prefix_prefix.push_str("void");
         }
         Int => {
-            prefix_prefix.push_str("int ");
+            prefix_prefix.push_str("int");
         }
         Struct(struct_ref, fields) => {
             // TODO not so sure about this. How does struct_ref
@@ -100,10 +107,6 @@ fn emit_decl_rec(
             prefix_prefix.push_str(&format!("struct {}", struct_ref.ident));
         }
         FuncType(domain, codomain) => {
-            prefix_prefix.push_str(&emit_decl(Ref {
-                t: *codomain,
-                ident: format!(""),
-            }));
             let mut i = 0;
             let length = domain.len();
             suffix.push_str("(");
@@ -115,12 +118,68 @@ fn emit_decl_rec(
                 i = i + 1;
             }
             suffix.push_str(")");
+
+            // We have the following precedence issue: Suppose we have
+            // a PCF function foo of type int -> int -> int. In C
+            // code, this should be represented as
+            //
+            //     int (*foo(int x))(int)
+            //
+            // without taking care to add parenthesis, we would
+            // naively emit
+            //
+            //     int* foo(int x)(int),
+            //
+            // which reads as "foo is a function (int) returning
+            // function (int) returning pointer to int."
+            //
+            // Reading C declarations, the rule is "go right when you
+            // can, otherwise go left." We want to return a pointer to
+            // a function (int) return int, so we must specify that
+            // the "pointer to" get parsed prior to the "function
+            // (int) returning," as by default, this will not happen -
+            // "function returning" goes on the right and so will be
+            // parsed prior to "pointer to." So we must add
+            // parenthesis for grouping purposes.
+            //
+            // This precedence issue will occur any time we want to
+            // return a function pointer.
+            match (*codomain).clone() {
+                Pointer(t2) => {
+                    if let &FuncType(ref d, ref c) = &*t2 {
+                        prefix.push_str("(");
+                        suffix.push_str(")");
+                    }
+                }
+                _ => {}
+            }
+            return emit_decl_rec(
+                *codomain,
+                ident.clone(),
+                &mut format!("{}{}", prefix_prefix, prefix),
+                suffix,
+            );
         }
         Pointer(t) => {
             prefix.push_str("*");
+            return emit_decl_rec(
+                *t,
+                ident.clone(),
+                &mut format!("{}{}", prefix_prefix, prefix),
+                suffix,
+            );
+        }
+        ArrayOf(t, len) => {
+            suffix.push_str(&format!("[{}]", len));
+            return emit_decl_rec(
+                *t,
+                ident.clone(),
+                &mut format!("{}{}", prefix_prefix, prefix),
+                suffix,
+            );
         }
     };
-    return format!("{}{}{}{}", prefix_prefix, prefix, result_ident, suffix);
+    return format!("{}{}{}{}", prefix_prefix, prefix, formatted_ident, suffix);
 }
 
 fn emit_expr(tabs: usize, e: Expr) -> String {
