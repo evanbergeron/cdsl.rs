@@ -11,6 +11,7 @@ pub struct Ref {
 pub enum Type {
     Void, /* In the C sense, not in the type theory sense. */
     Int,
+    Char,
     Struct(Box<Ref> /* name */, Vec<Ref> /* fields */),
     FuncType(Vec<Ref>, Box<Type>),
     Pointer(Box<Type>),
@@ -82,6 +83,7 @@ fn emit_decl_rec(
     prefix: &mut String,
     suffix: &mut String,
 ) -> String {
+    // println!("t: {:?}, prefix: {}, suffix: {}", &t, &prefix, &suffix);
     // The prefix of the prefix, as you might expect.
     let mut prefix_prefix = format!("");
     let formatted_ident: String = match ident.clone() {
@@ -100,6 +102,9 @@ fn emit_decl_rec(
         }
         Int => {
             prefix_prefix.push_str("int");
+        }
+        Char => {
+            prefix_prefix.push_str("char");
         }
         Struct(struct_ref, fields) => {
             // TODO not so sure about this. How does struct_ref
@@ -285,4 +290,248 @@ pub fn emit_program(t: Program) -> String {
         result.push_str(&emit_top(top));
     }
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    // run 'cargo test -- --nocapture' to see the output of printlns.
+
+    #[test]
+    fn test_emit_decl() {
+        assert!(
+            emit_decl(Ref {
+                t: Int,
+                ident: format!("foo"),
+            }) == format!("int foo")
+        );
+        assert!(
+            emit_decl(Ref {
+                t: Pointer(Box::new(Int)),
+                ident: format!("bar"),
+            }) == format!("int* bar")
+        );
+        assert!(
+            emit_decl(Ref {
+                t: Pointer(Box::new(Pointer(Box::new(Struct(
+                    Box::new(Ref {
+                        t: Void,
+                        ident: "baz".to_string(),
+                    }),
+                    vec![],
+                ))))),
+                ident: format!("bar"),
+            }) == format!("struct baz** bar")
+        );
+        assert!(
+            emit_decl(Ref {
+                t: ArrayOf(Box::new(Int), 3),
+                ident: format!("qux"),
+            }) == format!("int qux[3]")
+        );
+        assert!(
+            emit_decl(Ref {
+                t: FuncType(vec![], Box::new(Int)),
+                ident: format!("func"),
+            }) == format!("int func()")
+        );
+        assert!(
+            emit_decl(Ref {
+                t: FuncType(
+                    vec![
+                        Ref {
+                            t: Int,
+                            ident: format!("x"),
+                        },
+                    ],
+                    Box::new(Int),
+                ),
+                ident: format!("func"),
+            }) == format!("int func(int x)")
+        );
+        assert!(
+            emit_decl(Ref {
+                t: FuncType(
+                    vec![
+                        Ref {
+                            t: Int,
+                            ident: format!("x"),
+                        },
+                    ],
+                    Box::new(Pointer(Box::new(Int))),
+                ),
+                ident: format!("func"),
+            }) == format!("int* func(int x)")
+        );
+
+        assert!(
+            emit_decl(Ref {
+                t: FuncType(
+                    vec![
+                        Ref {
+                            t: Int,
+                            ident: format!("x"),
+                        },
+                    ],
+                    Box::new(Pointer(Box::new(FuncType(
+                        vec![
+                            Ref {
+                                t: Int,
+                                ident: format!("y"),
+                            },
+                        ],
+                        Box::new(Int),
+                    )))),
+                ),
+                ident: format!("func"),
+            }) == format!("int(*func(int x))(int y)")
+        );
+
+        assert!(
+            emit_decl(Ref {
+                t: FuncType(
+                    vec![
+                        Ref {
+                            t: Int,
+                            ident: format!("x"),
+                        },
+                    ],
+                    Box::new(Pointer(Box::new(FuncType(
+                        vec![
+                            Ref {
+                                t: Int,
+                                ident: format!(""),
+                            },
+                        ],
+                        Box::new(Int),
+                    )))),
+                ),
+                ident: format!("func"),
+            }) == format!("int(*func(int x))(int)")
+        );
+
+        assert!(
+            emit_decl(Ref {
+                t: FuncType(
+                    vec![
+                        Ref {
+                            t: Int,
+                            ident: format!("x"),
+                        },
+                        Ref {
+                            t: Int,
+                            ident: format!("y"),
+                        },
+                    ],
+                    Box::new(Pointer(Box::new(FuncType(
+                        vec![
+                            Ref {
+                                t: Int,
+                                ident: format!(""),
+                            },
+                        ],
+                        Box::new(Int),
+                    )))),
+                ),
+                ident: format!("func"),
+            }) == format!("int(*func(int x, int y))(int)")
+        );
+
+        assert!(
+            emit_decl(Ref {
+                t: FuncType(
+                    vec![
+                        Ref {
+                            t: Int,
+                            ident: format!("x"),
+                        },
+                        Ref {
+                            t: Char,
+                            ident: format!("y"),
+                        },
+                    ],
+                    Box::new(Pointer(Box::new(FuncType(
+                        vec![
+                            Ref {
+                                t: Int,
+                                ident: format!(""),
+                            },
+                        ],
+                        // Box::new(Pointer(Box::new(Int))),
+                        Box::new(Int),
+                    )))),
+                ),
+                ident: format!("func"),
+            }) == format!("int(*func(int x, char y))(int)")
+        );
+
+        assert!(
+            emit_decl(Ref {
+                t: FuncType(
+                    vec![
+                        Ref {
+                            t: Int,
+                            ident: format!("x"),
+                        },
+                        Ref {
+                            t: Char,
+                            ident: format!("y"),
+                        },
+                    ],
+                    Box::new(Pointer(Box::new(Int))),
+                ),
+                ident: format!("func"),
+            }) == format!("int* func(int x, char y)")
+        );
+
+        assert!(
+            emit_decl(Ref {
+                t: FuncType(
+                    vec![
+                        Ref {
+                            t: Int,
+                            ident: format!("x"),
+                        },
+                        Ref {
+                            t: Char,
+                            ident: format!("y"),
+                        },
+                    ],
+                    Box::new(Pointer(Box::new(Int))),
+                ),
+                ident: format!("func"),
+            }) == format!("int* func(int x, char y)")
+        );
+
+        assert!(
+            emit_decl(Ref {
+                t: FuncType(
+                    vec![
+                        Ref {
+                            t: Int,
+                            ident: format!("x"),
+                        },
+                    ],
+                    Box::new(Pointer(Box::new(Int))),
+                ),
+                ident: format!("func"),
+            }) == format!("int* func(int x)")
+        );
+
+        assert!(
+            emit_decl(Ref {
+                t: Pointer(Box::new(FuncType(
+                    vec![
+                        Ref {
+                            t: Int,
+                            ident: format!("x"),
+                        },
+                    ],
+                    Box::new(Pointer(Box::new(Int))),
+                ))),
+                ident: format!("foo"),
+            }) == format!("int* (*foo)(int x)")
+        );
+
+    }
 }
