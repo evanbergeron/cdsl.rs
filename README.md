@@ -1,3 +1,9 @@
-# cdsl.rs
+# A small crate for emitting C code
 
-Not much to see here. Just a simple AST definition for a subset of ISO99 C with functionality to emit source code. Pull requests encouraged.
+Currently handles a subset of C99. Handles some pretty nasty variable
+declarations that nest arrays with function pointers.
+
+Before this gets published on crates.io, I'd like to add more C99
+coverage along with some fuzzy testing.
+
+Pull requests are encouraged :)
