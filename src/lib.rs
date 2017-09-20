@@ -25,6 +25,7 @@ pub enum Expr {
     Inc(Type, Box<Expr>),
     Dec(Type, Box<Expr>),
     App(Ref, Vec<Expr>),
+    Deref(Box<Expr>),
     StructFieldAccess(Type, Ref, String),
     StructExpr(Type, String, Vec<Expr>),
 }
@@ -258,6 +259,7 @@ fn emit_expr(tabs: usize, e: Expr) -> String {
             result.push_str(")");
             result
         }
+        Deref(expr) => format!("*{}", emit_expr(0, *expr)),
         StructFieldAccess(t, r, ident) => format!("{}.{}", r.ident, ident),
         StructExpr(t, ident, fields) => {
             let mut result = format!("((struct {}) {{", ident);
