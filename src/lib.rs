@@ -77,6 +77,64 @@ pub fn emit_decl(r: Ref) -> String {
     emit_decl_rec(r.t, Some(r.ident), &mut format!(""), &mut format!(""))
 }
 
+// Returns true if t is a type constructor whose adjustment is denoted
+// on the right hand side of a C declaration and false otherwise.
+fn is_right_side_constructor(t: &Type) -> bool {
+    match *t {
+        ArrayOf(_, _) | FuncType(_, _) => true,
+        Void | Int | Char | Struct(_, _) | Pointer(_) => false,
+    }
+}
+
+// We have the following precedence issue: Suppose we have a PCF
+// function foo of type int -> int -> int. In C code, this should be
+// represented as
+//
+//     int (*foo(int x))(int)
+//
+// without taking care to add parenthesis, we would naively emit
+//
+//     int* foo(int x)(int),
+//
+// which reads as "foo is a function (int) returning function (int)
+// returning pointer to int."
+//
+// Reading C declarations, the rule is "go right when you can,
+// otherwise go left." We want to return a pointer to a function (int)
+// return int, so we must specify that the "pointer to" get parsed
+// prior to the "function (int) returning," as by default, this will
+// not happen - "function returning" goes on the right and so will be
+// parsed prior to "pointer to." So we must add parenthesis for
+// grouping purposes.
+//
+// This precedence issue will occur any time we want to return a
+// function pointer.
+//
+// More generally, parenthesis are needed any time we have a "left
+// side" constructor before a "right side" constructor.
+
+// Returns true if t is a type constructor whose adjustment is denoted
+// on the left hand side of a C declaration and false otherwise.
+fn is_left_side_constructor(t: &Type) -> bool {
+    match *t {
+        Pointer(_) => true,
+        ArrayOf(_, _) | FuncType(_, _) | Void | Int | Char | Struct(_, _) => {
+            false
+        }
+    }
+}
+
+fn has_right_side_constructor_child(t: &Type) -> bool {
+    match *t {
+        Void | Int | Char | Struct(_, _) => false,
+        // We don't care about the domain of f here, since it's within
+        // parenthesis.
+        FuncType(_, ref t2) |
+        Pointer(ref t2) |
+        ArrayOf(ref t2, _) => is_right_side_constructor(&**t2),
+    }
+}
+
 fn emit_decl_rec(
     t: Type,
     ident: Option<String>,
@@ -96,22 +154,44 @@ fn emit_decl_rec(
         }
         None => format!(""),
     };
+    if is_left_side_constructor(&t) && has_right_side_constructor_child(&t) {
+        prefix_prefix.push_str("(");
+        // The ending parenthesis will get added at the last second
+        // later on. Yes, this code is gross; I can't think of a
+        // better way to write it at the moment :/
+    }
+
+    // TODO consider matching on (is_left_side_constructor(&t), t.clone())
+
     match t.clone() {
         Void => {
+            assert!(
+                !is_left_side_constructor(&t) && !is_right_side_constructor(&t)
+            );
             prefix_prefix.push_str("void");
         }
         Int => {
+            assert!(
+                !is_left_side_constructor(&t) && !is_right_side_constructor(&t)
+            );
             prefix_prefix.push_str("int");
         }
         Char => {
+            assert!(
+                !is_left_side_constructor(&t) && !is_right_side_constructor(&t)
+            );
             prefix_prefix.push_str("char");
         }
         Struct(struct_ref, fields) => {
+            assert!(
+                !is_left_side_constructor(&t) && !is_right_side_constructor(&t)
+            );
             // TODO not so sure about this. How does struct_ref
             // interact with ident?
             prefix_prefix.push_str(&format!("struct {}", struct_ref.ident));
         }
         FuncType(domain, codomain) => {
+            assert!(is_right_side_constructor(&t));
             let mut i = 0;
             let length = domain.len();
             suffix.push_str("(");
@@ -124,40 +204,6 @@ fn emit_decl_rec(
             }
             suffix.push_str(")");
 
-            // We have the following precedence issue: Suppose we have
-            // a PCF function foo of type int -> int -> int. In C
-            // code, this should be represented as
-            //
-            //     int (*foo(int x))(int)
-            //
-            // without taking care to add parenthesis, we would
-            // naively emit
-            //
-            //     int* foo(int x)(int),
-            //
-            // which reads as "foo is a function (int) returning
-            // function (int) returning pointer to int."
-            //
-            // Reading C declarations, the rule is "go right when you
-            // can, otherwise go left." We want to return a pointer to
-            // a function (int) return int, so we must specify that
-            // the "pointer to" get parsed prior to the "function
-            // (int) returning," as by default, this will not happen -
-            // "function returning" goes on the right and so will be
-            // parsed prior to "pointer to." So we must add
-            // parenthesis for grouping purposes.
-            //
-            // This precedence issue will occur any time we want to
-            // return a function pointer.
-            match (*codomain).clone() {
-                Pointer(t2) => {
-                    if let &FuncType(ref d, ref c) = &*t2 {
-                        prefix.push_str("(");
-                        suffix.push_str(")");
-                    }
-                }
-                _ => {}
-            }
             return emit_decl_rec(
                 *codomain,
                 ident.clone(),
@@ -165,19 +211,24 @@ fn emit_decl_rec(
                 suffix,
             );
         }
-        Pointer(t) => {
-            prefix.push_str("*");
+        Pointer(t2) => {
+            assert!(is_left_side_constructor(&t));
+            prefix_prefix.push_str("*");
+            if has_right_side_constructor_child(&t) {
+                suffix.push_str(")");
+            }
             return emit_decl_rec(
-                *t,
+                *t2,
                 ident.clone(),
                 &mut format!("{}{}", prefix_prefix, prefix),
                 suffix,
             );
         }
-        ArrayOf(t, len) => {
+        ArrayOf(t2, len) => {
+            assert!(is_right_side_constructor(&t));
             suffix.push_str(&format!("[{}]", len));
             return emit_decl_rec(
-                *t,
+                *t2,
                 ident.clone(),
                 &mut format!("{}{}", prefix_prefix, prefix),
                 suffix,
@@ -457,7 +508,6 @@ mod tests {
                                 ident: format!(""),
                             },
                         ],
-                        // Box::new(Pointer(Box::new(Int))),
                         Box::new(Int),
                     )))),
                 ),
@@ -530,7 +580,44 @@ mod tests {
                     Box::new(Pointer(Box::new(Int))),
                 ))),
                 ident: format!("foo"),
-            }) == format!("int* (*foo)(int x)")
+            }) == format!("int*(*foo)(int x)")
+        );
+
+        assert!(
+            emit_decl(Ref {
+                t: Pointer(Box::new(FuncType(
+                    vec![
+                        Ref {
+                            t: Pointer(Box::new(Char)),
+                            ident: format!("y"),
+                        },
+                    ],
+                    Box::new(Pointer(Box::new(ArrayOf(Box::new(Int), 3)))),
+                ))),
+                ident: format!("foo"),
+            }) == format!("int(*(*foo)(char* y))[3]")
+        );
+
+        assert!(
+            emit_decl(Ref {
+                t: ArrayOf(Box::new(Pointer(
+                    Box::new(FuncType(vec![],
+                                      Box::new(Pointer(Box::new(
+                                          ArrayOf(Box::new(Char), 5)))))
+                ))), 3),
+                ident: format!("x"),
+            }) == format!("char(*(*x[3])())[5]")
+        );
+
+        assert!(
+            emit_decl(Ref {
+                t: Pointer(Box::new(
+                    FuncType(vec![
+                        Ref { t: Pointer(Box::new(Void)), ident: format!("") }],
+                             Box::new(Pointer(Box::new(ArrayOf(
+                                 Box::new(Int), 3))))))),
+                ident: format!("foo"),
+            }) == format!("int(*(*foo)(void*))[3]")
         );
 
     }
