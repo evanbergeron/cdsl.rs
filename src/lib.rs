@@ -327,7 +327,7 @@ fn emit_top(top: Top) -> String {
                     &format_line_with_semicolon(1, emit_decl(field))
                 );
             }
-            result.push_str("}\n\n");
+            result.push_str("};\n\n");
             result
         }
         StructDecl(struct_ref) => format!("struct {};\n", struct_ref.ident),
