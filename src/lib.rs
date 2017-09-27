@@ -12,6 +12,7 @@ pub enum Type {
     Void, /* In the C sense, not in the type theory sense. */
     Int,
     Char,
+    Bool,
     Struct(Box<Ref> /* name */, Vec<Ref> /* fields */),
     FuncType(Vec<Ref>, Box<Type>),
     Pointer(Box<Type>),
@@ -24,6 +25,7 @@ pub enum Expr {
     Unsigned(usize),
     Inc(Type, Box<Expr>),
     Dec(Type, Box<Expr>),
+    Equals(Box<Expr>, Box<Expr>),
     FuncApp(Type, Ref, Vec<Expr>),
     Deref(Type, Box<Expr>),
     AddrOf(Type, Box<Expr>),
@@ -91,7 +93,7 @@ pub fn emit_decl(r: Ref) -> String {
 fn is_right_side_constructor(t: &Type) -> bool {
     match *t {
         ArrayOf(_, _) | FuncType(_, _) => true,
-        Void | Int | Char | Struct(_, _) | Pointer(_) => false,
+        Void | Int | Char | Bool | Struct(_, _) | Pointer(_) => false,
     }
 }
 
@@ -127,15 +129,14 @@ fn is_right_side_constructor(t: &Type) -> bool {
 fn is_left_side_constructor(t: &Type) -> bool {
     match *t {
         Pointer(_) => true,
-        ArrayOf(_, _) | FuncType(_, _) | Void | Int | Char | Struct(_, _) => {
-            false
-        }
+        ArrayOf(_, _) | FuncType(_, _) | Void | Int | Char | Bool |
+        Struct(_, _) => false,
     }
 }
 
 fn has_right_side_constructor_child(t: &Type) -> bool {
     match *t {
-        Void | Int | Char | Struct(_, _) => false,
+        Void | Int | Char | Bool | Struct(_, _) => false,
         // We don't care about the domain of f here, since it's within
         // parenthesis.
         FuncType(_, ref t2) |
@@ -190,6 +191,12 @@ fn emit_decl_rec(
                 !is_left_side_constructor(&t) && !is_right_side_constructor(&t)
             );
             prefix_prefix.push_str("char");
+        }
+        Bool => {
+            assert!(
+                !is_left_side_constructor(&t) && !is_right_side_constructor(&t)
+            );
+            prefix_prefix.push_str("boolr");
         }
         Struct(struct_ref, fields) => {
             assert!(
@@ -253,6 +260,9 @@ fn emit_expr(tabs: usize, e: Expr) -> String {
         Unsigned(i) => format!("{}", i),
         Inc(t, e) => format!("{}++", emit_expr(tabs, *e)),
         Dec(t, e) => format!("{}--", emit_expr(tabs, *e)),
+        Equals(l, r) => {
+            format!("{} == {}", emit_expr(tabs, *l), emit_expr(tabs, *r))
+        }
         FuncApp(t, func_ref, args) => {
             let mut result = format!("{}(", func_ref.ident);
             let mut i = 0;
@@ -324,7 +334,7 @@ fn emit_top(top: Top) -> String {
             let mut result = format!("struct {} {{\n", struct_ref.ident);
             for field in field_refs {
                 result.push_str(
-                    &format_line_with_semicolon(1, emit_decl(field))
+                    &format_line_with_semicolon(1, emit_decl(field)),
                 );
             }
             result.push_str("};\n\n");
@@ -613,22 +623,28 @@ mod tests {
 
         assert!(
             emit_decl(Ref {
-                t: ArrayOf(Box::new(Pointer(
-                    Box::new(FuncType(vec![],
-                                      Box::new(Pointer(Box::new(
-                                          ArrayOf(Box::new(Char), 5)))))
-                ))), 3),
+                t: ArrayOf(
+                    Box::new(Pointer(Box::new(FuncType(
+                        vec![],
+                        Box::new(Pointer(Box::new(ArrayOf(Box::new(Char), 5)))),
+                    )))),
+                    3,
+                ),
                 ident: format!("x"),
             }) == format!("char(*(*x[3])())[5]")
         );
 
         assert!(
             emit_decl(Ref {
-                t: Pointer(Box::new(
-                    FuncType(vec![
-                        Ref { t: Pointer(Box::new(Void)), ident: format!("") }],
-                             Box::new(Pointer(Box::new(ArrayOf(
-                                 Box::new(Int), 3))))))),
+                t: Pointer(Box::new(FuncType(
+                    vec![
+                        Ref {
+                            t: Pointer(Box::new(Void)),
+                            ident: format!(""),
+                        },
+                    ],
+                    Box::new(Pointer(Box::new(ArrayOf(Box::new(Int), 3)))),
+                ))),
                 ident: format!("foo"),
             }) == format!("int(*(*foo)(void*))[3]")
         );
