@@ -24,8 +24,9 @@ pub enum Expr {
     Unsigned(usize),
     Inc(Type, Box<Expr>),
     Dec(Type, Box<Expr>),
-    App(Type, Ref, Vec<Expr>),
+    FuncApp(Type, Ref, Vec<Expr>),
     Deref(Type, Box<Expr>),
+    AddrOf(Type, Box<Expr>),
     StructFieldAccess(Type, Ref, String),
     StructExpr(Type, String, Vec<Expr>),
 }
@@ -68,6 +69,13 @@ fn format_line(tabs: usize, line: String) -> String {
     let mut result = make_tabs(tabs);
     result.push_str(&line);
     result.push_str("\n");
+    result
+}
+
+fn format_line_with_semicolon(tabs: usize, line: String) -> String {
+    let mut result = make_tabs(tabs);
+    result.push_str(&line);
+    result.push_str(";\n");
     result
 }
 
@@ -245,7 +253,7 @@ fn emit_expr(tabs: usize, e: Expr) -> String {
         Unsigned(i) => format!("{}", i),
         Inc(t, e) => format!("{}++", emit_expr(tabs, *e)),
         Dec(t, e) => format!("{}--", emit_expr(tabs, *e)),
-        App(t, func_ref, args) => {
+        FuncApp(t, func_ref, args) => {
             let mut result = format!("{}(", func_ref.ident);
             let mut i = 0;
             let length = args.len();
@@ -260,6 +268,7 @@ fn emit_expr(tabs: usize, e: Expr) -> String {
             result
         }
         Deref(t, expr) => format!("*{}", emit_expr(0, *expr)),
+        AddrOf(t, expr) => format!("&{}", emit_expr(0, *expr)),
         StructFieldAccess(t, r, ident) => format!("{}.{}", r.ident, ident),
         StructExpr(t, ident, fields) => {
             let mut result = format!("((struct {}) {{", ident);
@@ -305,7 +314,7 @@ fn emit_stmt(tabs: usize, s: Stmt) -> String {
         Return(e) => {
             format_line(tabs, format!("return {};", emit_expr(tabs, e)))
         }
-        VarDecl(r) => format_line(tabs, emit_decl(r)),
+        VarDecl(r) => format_line_with_semicolon(tabs, emit_decl(r)),
     }
 }
 
@@ -314,9 +323,11 @@ fn emit_top(top: Top) -> String {
         StructDef(struct_ref, field_refs) => {
             let mut result = format!("struct {} {{\n", struct_ref.ident);
             for field in field_refs {
-                result.push_str(&format_line(1, emit_decl(field)));
+                result.push_str(
+                    &format_line_with_semicolon(1, emit_decl(field))
+                );
             }
-            result.push_str("}}\n\n");
+            result.push_str("}\n\n");
             result
         }
         StructDecl(struct_ref) => format!("struct {};\n", struct_ref.ident),
