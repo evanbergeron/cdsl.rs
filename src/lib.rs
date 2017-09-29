@@ -40,6 +40,7 @@ pub enum Stmt {
     StandaloneExpr(Expr),
     Return(Expr),
     VarDecl(Ref),
+    VarDefn(Ref, Expr),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -325,6 +326,8 @@ fn emit_stmt(tabs: usize, s: Stmt) -> String {
             format_line(tabs, format!("return {};", emit_expr(tabs, e)))
         }
         VarDecl(r) => format_line_with_semicolon(tabs, emit_decl(r)),
+        VarDefn(r, e) => format_line_with_semicolon(
+            tabs, format!("{} = {}", emit_decl(r), emit_expr(0, e))),
     }
 }
 
