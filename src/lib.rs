@@ -82,6 +82,21 @@ fn format_line_with_semicolon(tabs: usize, line: String) -> String {
     result
 }
 
+pub fn type_of(e: &Expr) -> Type {
+  match *e {
+    V(ref v) => (*v).t.clone(),
+    Unsigned(ref i) => Int,
+    Equals(..) => Bool,
+    Inc(ref t, _) |
+    Dec(ref t, _) |
+    FuncApp(ref t, ..) |
+    Deref(ref t, ..) |
+    AddrOf(ref t, ..) |
+    StructFieldAccess(ref t, ..) |
+    StructExpr(ref t, ..) => (*t).clone(),
+  }
+}
+
 // TODO Consider changing 'emit' to another verb that more clearly
 // denotes producing a string, rather than printing a string.
 
