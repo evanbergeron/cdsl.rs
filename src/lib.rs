@@ -13,7 +13,7 @@ pub enum Type {
     Int,
     Char,
     Bool,
-    Struct(Box<Ref> /* name */, Vec<Ref> /* fields */),
+    Struct(String /* name */, Vec<Ref> /* fields */),
     FuncType(Vec<Ref>, Box<Type>),
     Pointer(Box<Type>),
     ArrayOf(Box<Type>, usize),
@@ -29,6 +29,8 @@ pub enum Expr {
     FuncApp(Type, Ref, Vec<Expr>),
     Deref(Type, Box<Expr>),
     AddrOf(Type, Box<Expr>),
+    SizeOf(Type),
+    Malloc(Type, Box<Expr>),
     StructFieldAccess(Type, Ref, String),
     StructExpr(Type, String, Vec<Expr>),
 }
@@ -85,13 +87,14 @@ fn format_line_with_semicolon(tabs: usize, line: String) -> String {
 pub fn type_of(e: &Expr) -> Type {
   match *e {
     V(ref v) => (*v).t.clone(),
-    Unsigned(ref i) => Int,
+    SizeOf(..) | Unsigned(..) => Int,
     Equals(..) => Bool,
     Inc(ref t, _) |
     Dec(ref t, _) |
     FuncApp(ref t, ..) |
     Deref(ref t, ..) |
     AddrOf(ref t, ..) |
+    Malloc(ref t, ..) |
     StructFieldAccess(ref t, ..) |
     StructExpr(ref t, ..) => (*t).clone(),
   }
@@ -102,6 +105,10 @@ pub fn type_of(e: &Expr) -> Type {
 
 pub fn emit_decl(r: Ref) -> String {
     emit_decl_rec(r.t, Some(r.ident), &mut format!(""), &mut format!(""))
+}
+
+pub fn emit_type(t: Type) -> String {
+    emit_decl_rec(t, None, &mut format!(""), &mut format!(""))
 }
 
 // Returns true if t is a type constructor whose adjustment is denoted
@@ -214,13 +221,13 @@ fn emit_decl_rec(
             );
             prefix_prefix.push_str("boolr");
         }
-        Struct(struct_ref, fields) => {
+        Struct(ident, fields) => {
             assert!(
                 !is_left_side_constructor(&t) && !is_right_side_constructor(&t)
             );
             // TODO not so sure about this. How does struct_ref
             // interact with ident?
-            prefix_prefix.push_str(&format!("struct {}", struct_ref.ident));
+            prefix_prefix.push_str(&format!("struct {}", ident));
         }
         FuncType(domain, codomain) => {
             assert!(is_right_side_constructor(&t));
@@ -295,6 +302,8 @@ fn emit_expr(tabs: usize, e: Expr) -> String {
         }
         Deref(t, expr) => format!("*{}", emit_expr(0, *expr)),
         AddrOf(t, expr) => format!("&{}", emit_expr(0, *expr)),
+        SizeOf(t) => format!("sizeof({})", emit_type(t)),
+        Malloc(t, expr) => format!("({})malloc({})", emit_type(t), emit_expr(0, *expr)),
         StructFieldAccess(t, r, ident) => format!("{}.{}", r.ident, ident),
         StructExpr(t, ident, fields) => {
             let mut result = format!("((struct {}) {{", ident);

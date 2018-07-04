@@ -1,0 +1,745 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<!-- saved from url=(0046)http://unixwiz.net/techtips/reading-cdecl.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<link rel="stylesheet" type="text/css" href="./Reading C type declarations_files/unixwiz.css">
+<link rel="shortcut icon" href="http://unixwiz.net/favicon.ico">
+
+<link rel="alternate" type="application/rss+xml" title="RSS 2.0" href="http://unixwiz.net/techtips/techtips.rss">
+<meta name="version" content="$Id: //websites/unixwiz/unixwiz.net/webroot/techtips/reading-cdecl.web#12 $">
+<!-- RSS description = are arbirarily complicated. -->
+<!-- RSS pubDate = 2003/12/27 -->
+<!-- Host: amz.unixwiz.net -->
+<style type="text/css">
+.hl	{ color:red; font-weight:bold; font-style:italic; }
+.st	{ color:blue; text-decoration: line-through; }
+.bl	{ color:blue; }
+.var	{ font-size:125%; font-family:Courier; }
+.decl   { font-size:150%; font-weight:bold; font-family:Courier; }
+.type   { font-size:125%; font-weight:bold; font-family:Courier; }
+.nobr	{ white-space: nobr; }
+.red B	{ color: red; }
+</style>
+<title>Reading C type declarations</title>
+</head>
+<body class="vsc-initialized">
+<div id="warning">
+  <h2>Does this site look plain?</h2>
+  <p>This site uses advanced css techniques</p>
+</div>
+<div id="logo">
+ <a href="http://unixwiz.net/">
+  <img src="./Reading C type declarations_files/unixwiz-logo-140x80.gif" alt="[Steve Friedl Logo]">
+ </a>
+</div>
+<div id="pageheader">
+<h1> Steve Friedl's Unixwiz.net Tech Tips </h1>
+<h2> Reading C type declarations </h2>
+</div>
+<div id="navmenu">
+  <ul>
+<li><a href="http://unixwiz.net/"> Home </a> </li>
+<li><a href="http://unixwiz.net/contact"> Contact </a> </li>
+<li><a href="http://unixwiz.net/about/"> About </a> </li>
+<li><a href="http://unixwiz.net/techtips/"> TechTips </a> </li>
+<li><a href="http://unixwiz.net/tools/"> Tools&amp;Source </a> </li>
+<li><a href="http://unixwiz.net/evo/"> Evo Payroll </a> </li>
+<li><a href="http://unixwiz.net/research/"> Research </a> </li>
+<li><a href="http://unixwiz.net/3b2.html"> AT&amp;T 3B2 </a> </li>
+<li><a href="http://unixwiz.net/advisories.html"> Advisories </a> </li>
+<li><a href="http://unixwiz.net/news.html"> News/Pubs </a> </li>
+<li><a href="http://unixwiz.net/literacy.html"> Literacy </a> </li>
+<li><a href="http://unixwiz.net/voting/"> Calif.Voting </a> </li>
+<li><a href="http://unixwiz.net/personal/"> Personal </a> </li>
+<li><a href="http://blog.unixwiz.net/"> Tech Blog </a> </li>
+<li><a href="http://hikeblog.unixwiz.net/"> Hiking Blog </a> </li>
+<li><a href="http://smokeblog.unixwiz.net/"> SmokeBlog </a> </li>
+</ul>
+</div>
+<div id="pagecontent">
+
+<p>
+Even relatively new C programmers have no trouble reading simple
+C declarations such as
+</p>
+
+<pre class="codeblock"><span class="decl">int      foo[5];     </span>// <i>foo is an array of 5 ints</i>
+<span class="decl">char    *foo;        </span>// <i>foo is a pointer to char</i>
+<span class="decl">double   foo();      </span>// <i>foo is a function returning a double</i>
+</pre>
+
+<p>
+but as the declarations get a bit more involved, it's more difficult
+to know exactly what you're looking at.
+</p>
+
+<pre class="codeblock"><span class="decl">char *(*(**foo[][8])())[]; </span>// <i>huh ?????</i>
+</pre>
+
+<p>
+It turns out that the rules for reading an arbitrarily-complex C variable
+declaration are easily learned by even beginning programmers (though how
+to actually <i>use</i> the variable so declared may be well out of reach).
+</p>
+
+<p>
+This Tech Tip shows how to do it.
+</p>
+
+<h1 id="types">Basic and Derived Types</h1>
+
+<p>
+In addition to one variable name, a declaration is composed of one
+"basic type" and zero or more "derived types", and it's crucial to
+understand the distinction between them.
+</p>
+
+<p>
+The complete list of basic types is:
+</p>
+
+<blockquote>
+<table cellspacing="5">
+<tbody><tr>	<td> • <span class="type">char</span>
+	</td><td> • <span class="type">signed char</span>
+	</td><td> • <span class="type">unsigned char</span>
+	</td><td> &nbsp;	</td></tr>
+<tr>	<td> • <span class="type">short</span>
+	</td><td> • <span class="type">unsigned short</span>
+	</td><td> &nbsp;
+	</td><td> &nbsp;	</td></tr>
+<tr>	<td> • <span class="type">int</span>
+	</td><td> • <span class="type">unsigned int</span>
+	</td><td> &nbsp;
+	</td><td> &nbsp;	</td></tr>
+<tr>	<td> • <span class="type">long</span>
+	</td><td> • <span class="type">unsigned long</span>
+	</td><td> &nbsp;
+	</td><td> &nbsp;	</td></tr>
+<tr>	<td> • <span class="type">float</span>
+	</td><td> • <span class="type">double</span>
+	</td><td> • <span class="type">void</span>
+	</td><td> &nbsp;	</td></tr>
+<tr>	<td> • <span class="type">struct <i>tag</i></span>&nbsp;&nbsp;&nbsp;
+	</td><td> • <span class="type">union <i>tag</i></span>&nbsp;&nbsp;&nbsp;
+	</td><td> • <span class="type">enum <i>tag</i></span>&nbsp;&nbsp;&nbsp;
+	</td><td> &nbsp;	</td></tr>
+
+<tr>	<td> • <span class="type">long long</span>
+	</td><td> • <span class="type">unsigned long long&nbsp;</span>
+	</td><td> • <span class="type">long double</span>
+	</td><td> &nbsp; &nbsp; <i>ANSI/ISO C only</i>			</td></tr>
+</tbody></table>
+</blockquote>
+
+<p>
+A declaration can have exactly <b>one</b> basic type, and it's always on
+the far left of the expression.
+</p>
+
+<p>
+The "basic types" are augmented with "derived types", and C has
+three of them:
+</p>
+
+<dl class="defnlist">
+<dt>
+<b>* &nbsp; pointer to...</b>
+</dt>
+<dd>This is denoted by the familiar <b>*</b> character, and it should be
+self evident that a pointer always has to point <b><i>to</i></b> something.
+</dd>
+
+<dt>
+<b>[] &nbsp; array of...</b>
+</dt>
+<dd>"Array of" can be undimensioned -- <b>[]</b> -- or dimensioned -- <b>[10]</b> --
+but the sizes don't really play significantly into reading a declaration.
+We typically include the size in the description. It should be clear
+that arrays have to be "arrays <b><i>of</i></b>" something.
+</dd>
+
+<dt>
+<b>() &nbsp; function returning...</b>
+</dt>
+<dd>
+This is usually denoted by a pair of parentheses together - <b>()</b> -
+though it's also possible to find a prototype parameter list inside.
+Parameters lists (if present) don't really play into reading a
+declaration, and we typically ignore them. We'll note that parens
+used to represent "function returning" are different than those
+used for grouping: grouping parens <i>surround</i> the variable name,
+while "function returning" parens are always on the right.
+</dd>
+
+<dd>
+Functions are meaningless unless they <i>return</i> something (and we
+accommodate the <b>void</b> type by waving the hand and pretend that
+it's "returning" void).
+</dd>
+
+</dl>
+
+<p>
+A derived type <i>always</i> modifies something that follows, whether it be
+the basic type or another derived type, and to make a declaration read
+properly one must always include the preposition ("to", "of", "returning").
+Saying "pointer" instead of "pointer to" will make your declarations fall
+apart.
+</p>
+
+<p>
+It's possible that a type expression may have no derived types (e.g.,
+<span class="nobr"><b>"int i"</b></span> describes "i is an int"), or it can have
+many. Interpreting the derived types is usually the sticking point when
+reading a complex declaration, but this is resolved with operator
+precedence in the next section.
+</p>
+
+<h1>Operator Precedence</h1>
+
+<p>
+Almost every C programmer is familiar with the operator precedence
+tables, which give rules that say (for instance) multiply and divide
+have higher precedence than ("are preformed before") addition or subtraction,
+and parentheses can be used to alter the grouping.
+This seems natural for "normal" expressions, but the same rules do
+indeed apply to declarations - they are <i>type</i> expressions rather
+than <i>computational</i> ones.
+</p>
+
+<p>
+The "array of" <b>[]</b> and "function returning" <b>()</b> type operators
+have higher precedence than "pointer to" <b>*</b>, and this leads to some
+fairly straightforward rules for decoding.
+</p>
+
+<p>
+<i>Always</i> start with the variable name:
+</p>
+
+<blockquote>
+<b>foo is</b> ...
+</blockquote>
+
+<p>
+and <i>always</i> end with the basic type:
+</p>
+
+<blockquote>
+foo is ... <b>int</b>
+</blockquote>
+
+<p>
+The "filling in the middle" part is usually the trickier part, but it
+can be summarize with this rule:
+</p>
+
+<blockquote>
+"go right when you can, go left when you must"
+</blockquote>
+
+<p>
+Working your way out from the variable name, honor the precedence rules
+and consume derived-type tokens to the right as far as possible without
+bumping into a grouping parenthesis. Then go left to the matching paren.
+</p>
+
+<h1>A simple example</h1>
+
+<p>
+We'll start with a simple example:
+</p>
+
+<pre class="codeblock"><span class="decl">long **foo[7];</span>
+</pre>
+
+<p>
+We'll approach this systematically, focusing on just one or two small
+part as we develop the description in English. As we do it, we'll
+show the focus of our attention in <span class="hl">red</span>,
+and <strike>strike out</strike> the parts we've finished with.
+</p>
+
+<dl class="defnlist">
+<dt class="var">
+<span class="hl">long</span> **<span class="hl">foo</span> [7];
+</dt>
+<dd>
+Start with the variable name and end with the basic type:
+</dd>
+<dd>
+<span class="hl">foo is</span> ... <span class="hl">long</span>
+</dd>
+
+<dt class="var">
+<span class="st">long</span> ** <span class="st">foo</span><span class="hl">[7]</span>;
+</dt>
+
+<dd>At this point, the variable name is touching two derived types:
+"array of 7" and "pointer to", and the rule is to go right when you can,
+so in this case we consume the "array of 7"
+</dd>
+
+<dd>
+<span class="bl">foo is</span>
+<span class="hl">array of 7</span>
+...
+<span class="bl">long</span>
+</dd>
+
+<dt class="var">
+<span class="st">long</span> *<span class="hl">*</span> <span class="st">foo[7]</span>;
+</dt>
+<dd>Now we've gone as far right as possible, so the innermost part
+is only touching the "pointer to" - consume it.
+</dd>
+
+<dd>
+<span class="bl">foo is</span>
+<span class="bl">array of 7</span>
+<span class="hl">pointer to</span>
+...
+<span class="bl">long</span>
+</dd>
+
+<dt class="var">
+<span class="st">long</span>
+<span class="hl">*</span>
+<span class="st">*foo[7]</span>;
+</dt>
+<dd>
+The innermost part is now only touching a "pointer to", so consume it also.
+</dd>
+
+<dd>
+<span class="bl">foo is</span>
+<span class="bl">array of 7</span>
+<span class="bl">pointer to</span>
+<span class="hl">pointer to</span>
+<span class="bl">long</span>
+</dd>
+</dl>
+
+<p>
+This completes the declaration!
+</p>
+
+<h1>A hairy example</h1>
+
+<p>
+To really test our skills, we'll try a very complex declaration that very
+well may never appear in real life (indeed: we're hard-pressed to think
+of how this could actually be used). But it shows that the rules scale
+to very complex declarations.
+</p>
+
+<dl class="defnlist">
+<dt class="var">
+<span class="hl">char</span> *(*(**<span class="hl">foo</span> [][8])())[];
+</dt>
+<dd>
+All declaration start out this way: "variable name is .... basictype"
+</dd>
+<dd>
+<span class="hl">foo is</span> ... <span class="hl">char</span>
+</dd>
+
+<dt class="var">
+<span class="st">char</span> *(*(**<span class="st">foo</span><span class="hl">[]</span> [8])())[];
+</dt>
+<dd>
+The innermost part touches "array of" and "pointer to" - go right.
+</dd>
+<dd>
+<span class="bl">foo is</span>
+<span class="hl">array of </span>
+...
+<span class="bl">char</span>
+</dd>
+
+<dt class="var">
+<span class="st">char</span> *(*(**<span class="st">foo[]</span><span class="hl">[8]</span>)())[];
+</dt>
+<dd>
+It's common in a declaration to alternate right and left, but this is not the
+rule: the rule is to go as far right as we can, and here we find that the innermost
+part still touches "array of" and "pointer to". Again, go right.
+</dd>
+<dd>
+<span class="bl">foo is</span>
+<span class="bl">array of </span>
+<span class="hl">array of 8</span>
+...
+<span class="bl">char</span>
+</dd>
+
+<dt class="var">
+<span class="st">char</span> *(*(*<span class="hl">*</span> <span class="st">foo[][8]</span>)())[];
+</dt>
+<dd>
+Now we've hit parenthesis used for grouping, and this halts our march to the right.
+So we have to backtrack to collect all the parts to the left (but only as far as
+the paren). This consumes the "pointer to":
+</dd>
+
+<dd>
+<span class="bl">foo is</span>
+<span class="bl">array of</span>
+<span class="bl">array of 8</span>
+<span class="hl">pointer to</span>
+...
+<span class="bl">char</span>
+</dd>
+
+<dt class="var">
+<span class="st">char</span> *(*(<span class="hl">*</span> <span class="st">*foo[][8]</span>)())[];
+</dt>
+<dd>
+Again we are backtracking to the left, so we consume the next "pointer to":
+</dd>
+
+<dd>
+<span class="bl">foo is</span>
+<span class="bl">array of</span>
+<span class="bl">array of 8</span>
+<span class="bl">pointer to</span>
+<span class="hl">pointer to</span>
+...
+<span class="bl">char</span>
+</dd>
+
+<dt class="var">
+<span class="st">char</span> *(*<span class="st">(**foo[][8])</span><span class="hl">()</span>)[];
+</dt>
+<dd>
+After consuming the "pointer to" in the previous step, this finished off the
+entire parenthesized subexpression, so we "consume" the parens too. This
+leaves the innermost part touching "function returning" on the right, and
+"pointer to" on the left - go right:
+</dd>
+
+<dd>
+<span class="bl">foo is</span>
+<span class="bl">array of</span>
+<span class="bl">array of 8</span>
+<span class="bl">pointer to</span>
+<span class="bl">pointer to</span>
+<span class="hl">function returning</span>
+...
+<span class="bl">char</span>
+</dd>
+
+<dt class="var">
+<span class="st">char</span> *(<span class="hl">*</span> <span class="st">(**foo[][8])()</span> )[];
+</dt>
+<dd>
+Again we hit grouping parenthesis, so backtrack to the left:
+</dd>
+
+<dd>
+<span class="bl">foo is</span>
+<span class="bl">array of</span>
+<span class="bl">array of 8</span>
+<span class="bl">pointer to</span>
+<span class="bl">pointer to</span>
+<span class="bl">function returning</span>
+<span class="hl">pointer to</span>
+...
+<span class="bl">char</span>
+</dd>
+
+<dt class="var">
+<span class="st">char</span> * <span class="st">(*(**foo[][8])())</span><span class="hl">[]</span>;
+</dt>
+<dd>
+Consuming the grouping parentheses, we then find that the innermost part is
+touching "array of" on the right, and "pointer to" on the left. Go right:
+</dd>
+
+<dd>
+<span class="bl">foo is</span>
+<span class="bl">array of</span>
+<span class="bl">array of 8</span>
+<span class="bl">pointer to</span>
+<span class="bl">pointer to</span>
+<span class="bl">function returning</span>
+<span class="bl">pointer to</span>
+<span class="hl">array of</span>
+...
+<span class="bl">char</span>
+</dd>
+
+<dt class="var">
+<span class="st">char</span> <span class="hl">*</span> <span class="st">(*(**foo[][8])())[]</span>;
+</dt>
+<dd>
+Finally we're left with only "pointer to" on the left: consume it to
+finish the declaration.
+</dd>
+
+<dd>
+<span class="bl">foo is</span>
+<span class="bl">array of</span>
+<span class="bl">array of 8</span>
+<span class="bl">pointer to</span>
+<span class="bl">pointer to</span>
+<span class="bl">function returning</span>
+<span class="bl">pointer to</span>
+<span class="bl">array of</span>
+<span class="hl">pointer to</span>
+<span class="bl">char</span>
+</dd>
+</dl>
+
+
+<p>
+We have no idea how this variable is useful, but at least we can
+describe the type correctly.
+</p>
+
+<p>
+Note that example won't compile unless it's <u>initialized</u> to provide the dimension of the innermost array,
+though none of this changes the fact that nobody would ever <i>actually</i> use this for anything:
+</p>
+
+<pre class="codeblock red">
+// explicit initialization
+char *(*(**foo[][8])())[] <b>= { 0 };</b>
+
+// implicit init from function call
+
+<b>void myfunction(</b>char *(*(**foo[][8])())[]<b>)</b>
+{
+	...
+}
+</pre>
+
+<h1>Abstract Declarators</h1>
+
+<p>
+The C standard describes an "abstract declarator", which is used when a
+type needs to be described but not associated with a variable name. These
+occur in two places -- casts, and as arguments to <b>sizeof</b> -- and they
+can look intimidating:
+</p>
+
+<blockquote>
+<span class="decl">int (*(*)())()</span>
+</blockquote>
+
+<p>
+To the obvious question of "where does one start?", the answer is
+"find where the variable name would go, then treat it like a normal
+declaration".  There is only one place where a variable name could
+possibly go, and locating it is actually straightforward. Using the
+syntax rules, we know that:
+</p>
+
+<ul>
+<li>to the right of all the "pointer to" derived type tokens
+</li><li>to the left of all "array of" derived type tokens
+</li><li>to the left of all "function returning" derived type tokens
+</li><li>inside all the grouping parentheses
+</li></ul>
+
+<p>
+Looking at the example, we see that the rightmost "pointer to" sets
+one boundary, and the leftmost "function returning" sets another one:
+</p>
+
+<blockquote>
+<span class="decl">
+<span class="st">int (*(*</span><span class="hl"> • ) • </span><span class="st">())()</span>
+</span>
+</blockquote>
+
+<p>
+The red • indicators show the only two places that could possibly hold
+the variable name, but the leftmost one is the only one that fits the
+"inside the grouping parens" rule. This gives us our declaration as:
+</p>
+
+<blockquote>
+<span class="decl">int (*(*foo)())()</span>
+</blockquote>
+
+<p>
+which our "normal" rules describe as:
+</p>
+
+<blockquote>
+<b>foo is a pointer to function returning pointer to function returning int</b>
+</blockquote>
+
+<h1>Semantic restrictions/notes</h1>
+
+<p>
+Not all combinations of derived types are allowed, and it's possible
+to create a declaration that perfectly follows the syntax rules but is
+nevertheless not legal in C (e.g., <i>syntactically</i> valid but
+<i>semantically</i> invalid). We'll touch on them here.
+</p>
+
+<dl class="defnlist">
+<dt>Can't have arrays of functions
+</dt>
+<dd>Use "array of pointer to function returning..." instead.
+</dd>
+
+<dt>Functions can't return functions
+</dt>
+<dd>Use "function returning pointer to function returning..." instead.
+</dd>
+
+<dt>Functions can't return arrays
+</dt>
+<dd>Use "function returning pointer to array of..." instead.
+</dd>
+
+<dt>In arrays, only the leftmost [] can be undimensioned
+</dt>
+<dd>C supports multi-dimensional arrays (e.g.,
+<span class="nobr"><b>char foo[1][2][3][4]</b></span>), though in practice
+this often suggests poor data structuring. Nevertheless, when there
+is more than one array dimension, only the leftmost one is allowed to
+be empty.
+<span class="nobr"><b>char foo[]</b></span> and
+<span class="nobr"><b>char foo[][5]</b></span> are legal, but
+<span class="nobr"><b>char foo[5][]</b></span>
+is not.
+</dd>
+
+<dt>"void" type is restricted
+</dt>
+<dd>
+Since <b>void</b> is a special pseudo-type, a variable with this basic type is
+only legal with a final derived type of "pointer to" or "function returning".
+It's not legal to have "array of void" or to declare a variable of just
+type "void" without any derived types.
+</dd>
+
+<dd>
+<pre class="codeblock"><b>void *foo;</b>            // legal
+<b>void foo();</b>           // legal
+<b>void foo;</b>             // not legal
+<b>void foo[];</b>           // not legal
+</pre>
+</dd>
+
+</dl>
+
+<h1>Adding calling-convention types </h1>
+
+<p>
+On the Windows platform, it's common to decorate a function declaration
+with an indication of its <i>calling convention</i>. These tell the compiler
+which mechanism should be used to call the function in question, and the
+method used to call the function <em>must</em> be the same one which the
+function expects. They look like:
+</p>
+
+<pre class="codeblock red">extern int <b>__cdecl</b> main(int argc, char **argv);
+
+extern BOOL <b>__stdcall</b> DrvQueryDriverInfo(DWORD dwMode, PVOID pBuffer,
+                              DWORD cbBuf, PDWORD pcbNeeded);
+</pre>
+
+<p>
+These decorations are very common in Win32 development, and are
+straightforward enough to understand. More information can be found
+in <a href="http://unixwiz.net/techtips/win32-callconv.html">Unixwiz.net
+Tech Tip: Using Win32 calling conventions</a>
+</p>
+
+<p>
+Where it gets somewhat more tricky is when the calling convention
+must be incorporated into a pointer (including via a typedef), because
+the tag doesn't seem to fit into the normal scheme of things. These
+are often used (for instance) when dealing with the <b>LoadLibrary()</b>
+and <b>GetProcAddress()</b> API calls to call a function from a freshly-loaded
+DLL.
+</p>
+
+<p>
+We commonly see this with typedefs:
+</p>
+
+<pre class="codeblock red">typedef BOOL (<b>__stdcall</b> *PFNDRVQUERYDRIVERINFO)(
+    DWORD   dwMode,
+    PVOID   pBuffer,
+    DWORD   cbBuf,
+    PDWORD  pcbNeeded
+    );
+
+...
+
+/* get the function address from the DLL */
+pfnDrvQueryDriverInfo = (PFNDRVRQUERYDRIVERINFO)
+	GetProcAddress(hDll, "DrvQueryDriverInfo")
+</pre>
+
+<p>
+The calling convention is an attribute of the <i>function</i>,
+not the <i>pointer</i>, so in the usual reading puts it after
+the pointer but inside the grouping parenthesis:
+</p>
+
+<blockquote class="decl">
+BOOL (<b>__stdcall</b> *foo)(...);
+</blockquote>
+
+<p>
+is read as:
+</p>
+
+<blockquote>
+foo is a pointer <br>
+to a __stdcall function <br>
+returning BOOL.
+</blockquote>
+
+<!--
+<h1>"const" and "volatile"</h1>
+
+These type qualifiers add a complication because they can apply to
+either the basic type or the derived type.
+
+<ul>
+<li>If the qualifier is directly before or directly after the basic type,
+it modifies the basic type, so these two are identical:
+
+<pre class="codeblock">
+int const ...;
+const int ...;
+</pre>
+
+<li>
+These qualifiers are otherwise consumed and read where they are found.
+</ul>
+-->
+
+<div id="navmore">
+  <a href="http://unixwiz.net/techtips/index.html"> More Tech Tips </a>
+</div>
+
+</div>
+<div id="pagefooter">
+  <span class="bottomright"> </span>
+  <div class="pagefootercontent">
+    <a href="http://unixwiz.net/"> Home </a>
+	<span class="divbrick"> &nbsp; </span> 
+    <a href="http://unixwiz.net/contact.html">Stephen J. Friedl</a>
+    <span class="divbrick"> &nbsp;</span>
+    Software Consultant
+    <span class="divbrick"> &nbsp;</span>
+    Orange County, CA USA
+    <span class="divbrick"> &nbsp;</span>
+    <img src="./Reading C type declarations_files/steve-email.gif" alt="[Steve&#39;s Email]">
+<span class="divbrick"> &nbsp; </span>
+  <a href="http://unixwiz.net/techtips/techtips.rss">
+    <img src="./Reading C type declarations_files/feed-icon-14x14.png" alt="[RSS Feed available]" width="14" height="14" border="0">
+  </a>
+  </div>
+</div>
+
+</body><div></div><div></div></html>
